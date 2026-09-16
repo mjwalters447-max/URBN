@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>URBN</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main>
+    <section id="lock" class="lock-wrap">
+      <div class="lock-card">
+        <div class="mark">◈</div>
+        <h1>URBN</h1>
+        <p class="muted">Private view</p>
+        <form id="unlock-form">
+          <label for="password">Password</label>
+          <input id="password" type="password" autocomplete="current-password" required>
+          <label class="remember"><input id="remember" type="checkbox"> Remember this device</label>
+          <button type="submit">Unlock</button>
+          <p id="unlock-error" class="error" aria-live="polite"></p>
+        </form>
+      </div>
+    </section>
+
+    <section id="app" class="hidden">
+      <header>
+        <div>
+          <h1>◈ URBN</h1>
+          <p id="freshness" class="muted"></p>
+        </div>
+        <button id="lock-button" class="ghost">Lock</button>
+      </header>
+
+      <div class="toolbar">
+        <input id="search" type="search" placeholder="Search…">
+        <select id="source-filter"><option value="">All sources</option></select>
+        <select id="group-filter"><option value="">All groups</option></select>
+        <select id="sort">
+          <option value="name">Name</option>
+          <option value="price-asc">Price: low to high</option>
+          <option value="price-desc">Price: high to low</option>
+          <option value="discount">Largest discount</option>
+          <option value="metric">Metric: high to low</option>
+          <option value="ppg">Unit value: low to high</option>
+        </select>
+      </div>
+
+      <nav>
+        <button data-view="browse" class="active">Browse</button>
+        <button data-view="offers">Offers</button>
+        <button data-view="compare">Compare</button>
+        <button data-view="sources">Sources</button>
+      </nav>
+
+      <section id="summary" class="summary"></section>
+      <section id="content" class="cards"></section>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
