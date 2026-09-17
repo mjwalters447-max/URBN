@@ -33,24 +33,43 @@
         <button id="lock-button" class="ghost">Lock</button>
       </header>
 
-      <div class="toolbar">
-        <input id="search" type="search" placeholder="Search…">
-        <select id="source-filter"><option value="">All sources</option></select>
-        <select id="group-filter"><option value="">All groups</option></select>
-        <select id="sort">
-          <option value="name">Name</option>
-          <option value="price-asc">Price: low to high</option>
-          <option value="price-desc">Price: high to low</option>
-          <option value="discount">Largest discount</option>
-          <option value="metric">Metric: high to low</option>
-          <option value="ppg">Unit value: low to high</option>
-        </select>
-      </div>
+      <section class="filter-panel" aria-label="Filters">
+        <label class="filter-search">
+          <span>Search</span>
+          <input id="search" type="search" placeholder="Search…">
+        </label>
+        <label class="filter-control">
+          <span>Source</span>
+          <select id="source-filter"><option value="">All Sources</option></select>
+        </label>
+        <label class="filter-control">
+          <span>Type</span>
+          <select id="group-filter"><option value="">All Types</option></select>
+        </label>
+        <label class="filter-control">
+          <span>Size</span>
+          <select id="size-filter"><option value="">Any Size</option></select>
+        </label>
+        <label class="filter-control">
+          <span id="attribute-caption">Attribute</span>
+          <select id="attribute-filter"><option value="">Any</option></select>
+        </label>
+        <label class="filter-control sort-control">
+          <span>Sort</span>
+          <select id="sort">
+            <option value="name">Sort</option>
+            <option value="price-asc">Price: Low to High</option>
+            <option value="price-desc">Price: High to Low</option>
+            <option value="discount">Largest Discount</option>
+            <option value="ppg">Unit Value: Low to High</option>
+          </select>
+        </label>
+      </section>
 
       <nav>
-        <button data-view="browse" class="active">Browse</button>
-        <button data-view="offers">Offers</button>
-        <button data-view="compare">Compare</button>
+        <button data-view="browse" class="active">All</button>
+        <button data-view="offers">Offers Only</button>
+        <button data-view="compare"><span>Cross<br>Matches</span></button>
         <button data-view="sources">Sources</button>
       </nav>
 

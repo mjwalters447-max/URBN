@@ -1,4 +1,4 @@
-const $ = (id) => document.getElementById(id);
+const $ = (id) => typeof document !== "undefined" ? document.getElementById(id) : null;
 const state = { data:null, view:"browse" };
 
 async function unpack(bytes) {
@@ -34,19 +34,60 @@ async function openData(password) {
 }
 
 function money(v){ return v == null ? "" : `$${Number(v).toFixed(2)}`; }
-function pct(v){ return v == null ? "" : `${Number(v).toFixed(1).replace(".0","")}%`; }
+function pct(v){ return v == null ? "" : `${Number(v).toFixed(2).replace(/\.00$/,"").replace(/(\.\d)0$/,"$1")}%`; }
 function esc(s=""){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
-function metricNumber(v){ const m=String(v||"").match(/\d+(?:\.\d+)?/); return m ? Number(m[0]) : -1; }
+function metricNumber(v){ const m=String(v||"").match(/\d+(?:\.\d+)?/); return m ? Number(m[0]) : null; }
+function sizeLabel(v){ const n=Number(v); return `${n.toFixed(3).replace(/0+$/,"").replace(/\.$/,"")}g`; }
+
+function attributeValue(item, key){
+  if(!key || !item || !item.q || !(key in item.q)) return null;
+  const value=Number(item.q[key]);
+  return Number.isFinite(value) ? value : null;
+}
+function hasAttribute(item, key){
+  const value=attributeValue(item,key);
+  return value !== null && value > 0;
+}
+function descNumber(a,b){
+  const av=Number.isFinite(a) ? a : -Infinity, bv=Number.isFinite(b) ? b : -Infinity;
+  if(av===bv) return 0;
+  return bv>av ? 1 : -1;
+}
+function compareItems(a,b,sort,key=""){
+  let result=0;
+  if(sort==="price-asc") result=(a.p??Infinity)-(b.p??Infinity);
+  else if(sort==="price-desc") result=(b.p??-Infinity)-(a.p??-Infinity);
+  else if(sort==="discount") result=descNumber(Number(a.d),Number(b.d));
+  else if(sort==="metric-h") result=descNumber(metricNumber(a.h),metricNumber(b.h));
+  else if(sort==="metric-r") {
+    result=key
+      ? descNumber(attributeValue(a,key),attributeValue(b,key))
+      : descNumber(metricNumber(a.r),metricNumber(b.r));
+  }
+  else if(sort==="ppg") result=(a.g??Infinity)-(b.g??Infinity);
+  else result=String(a.n||"").localeCompare(String(b.n||""));
+
+  if(result===0 && key){
+    result=descNumber(attributeValue(a,key),attributeValue(b,key));
+  }
+  if(result===0) result=String(a.n||"").localeCompare(String(b.n||""));
+  return result;
+}
 
 function itemCard(p){
   const labels=state.data.l||{};
+  const selected=$("attribute-filter")?.value||"";
+  const selectedValue=attributeValue(p,selected);
   const old = p.P && p.P > p.p ? `<span class="old">${money(p.P)}</span>` : "";
   const sale = p.d ? `<span class="badge sale">${pct(p.d)} off</span>` : (p.s ? `<span class="badge sale">Offer</span>` : "");
   const meta = [p.c,p.t,p.z,p.h?`${labels.h||"M1"} ${p.h}`:null,p.r?`${labels.r||"M2"} ${p.r}`:null].filter(Boolean).join(" • ");
+  const focus = selected && selectedValue !== null
+    ? `<div class="focus-metric"><span>${esc(selected)}</span><strong>${pct(selectedValue)}</strong></div>` : "";
   return `<article class="card">
     <div class="store">${esc(p.A||"")}</div>
     <div class="brand">${esc(p.b||"")}</div>
     <h3>${esc(p.n||"")}</h3>
+    ${focus}
     <div class="meta">${esc(meta)}</div>
     ${sale}
     <div class="price">${money(p.p)}${old}</div>
@@ -58,27 +99,29 @@ function itemCard(p){
 }
 
 function filtered(){
-  const q=$("search").value.trim().toLowerCase(), source=$("source-filter").value, group=$("group-filter").value;
+  const q=$("search").value.trim().toLowerCase();
+  const source=$("source-filter").value, group=$("group-filter").value;
+  const size=$("size-filter").value, attribute=$("attribute-filter").value;
   let items=[...(state.data.p||[])];
   if(state.view==="offers") items=items.filter(p=>p.s);
   if(q) items=items.filter(p=>[p.n,p.b,p.c,p.t,p.A].some(x=>String(x||"").toLowerCase().includes(q)));
   if(source) items=items.filter(p=>p.a===source);
   if(group) items=items.filter(p=>p.c===group);
+  if(size) items=items.filter(p=>Number(p.w)===Number(size));
+  if(attribute) items=items.filter(p=>hasAttribute(p,attribute));
   const sort=$("sort").value;
-  items.sort((a,b)=>{
-    if(sort==="price-asc") return (a.p??Infinity)-(b.p??Infinity);
-    if(sort==="price-desc") return (b.p??-1)-(a.p??-1);
-    if(sort==="discount") return (b.d??-1)-(a.d??-1);
-    if(sort==="metric") return metricNumber(b.h)-metricNumber(a.h);
-    if(sort==="ppg") return (a.g??Infinity)-(b.g??Infinity);
-    return String(a.n||"").localeCompare(String(b.n||""));
-  });
+  items.sort((a,b)=>compareItems(a,b,sort,attribute));
   return items;
 }
 
 function renderBrowse(){
   const items=filtered();
-  $("summary").textContent=`${items.length} items`;
+  const attribute=$("attribute-filter").value;
+  if(attribute){
+    $("summary").innerHTML=`<span>${items.length} items</span><span class="filter-note">Items without a reported ${esc(attribute)} concentration are excluded.</span>`;
+  } else {
+    $("summary").textContent=`${items.length} items`;
+  }
   $("content").innerHTML=items.map(itemCard).join("") || `<div class="card">No matching items.</div>`;
 }
 function renderCompare(){
@@ -112,11 +155,31 @@ function render(){
 
 function initData(data){
   state.data=data;
+  const labels=data.l||{};
   $("freshness").textContent=`Updated ${new Date(data.g).toLocaleString()}`;
+
   const sources=[...new Map((data.p||[]).map(p=>[p.a,p.A])).entries()].sort((a,b)=>String(a[1]).localeCompare(String(b[1])));
-  $("source-filter").innerHTML=`<option value="">All sources</option>`+sources.map(([v,n])=>`<option value="${esc(v)}">${esc(n)}</option>`).join("");
+  $("source-filter").innerHTML=`<option value="">All Sources</option>`+sources.map(([v,n])=>`<option value="${esc(v)}">${esc(n)}</option>`).join("");
+
   const groups=[...new Set((data.p||[]).map(p=>p.c).filter(Boolean))].sort();
-  $("group-filter").innerHTML=`<option value="">All groups</option>`+groups.map(c=>`<option>${esc(c)}</option>`).join("");
+  $("group-filter").innerHTML=`<option value="">All Types</option>`+groups.map(c=>`<option>${esc(c)}</option>`).join("");
+
+  const sizes=[...new Set((data.p||[]).map(p=>Number(p.w)).filter(v=>Number.isFinite(v)&&v>0))].sort((a,b)=>a-b);
+  $("size-filter").innerHTML=`<option value="">Any Size</option>`+sizes.map(v=>`<option value="${v}">${sizeLabel(v)}</option>`).join("");
+
+  const attrs=[...new Set((data.p||[]).flatMap(p=>Object.entries(p.q||{}).filter(([,v])=>Number(v)>0).map(([k])=>k)))].sort((a,b)=>a.localeCompare(b));
+  $("attribute-caption").textContent=labels.f||"Attribute";
+  $("attribute-filter").innerHTML=`<option value="">${esc(labels.af||"Any")}</option>`+attrs.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("");
+
+  $("sort").innerHTML=`
+    <option value="name">Sort</option>
+    <option value="price-asc">Price: Low to High</option>
+    <option value="price-desc">Price: High to Low</option>
+    <option value="discount">Largest Discount</option>
+    <option value="metric-h">${esc(labels.sh||"Metric 1: High to Low")}</option>
+    <option value="metric-r">${esc(labels.sr||"Metric 2: High to Low")}</option>
+    <option value="ppg">Unit Value: Low to High</option>`;
+
   $("lock").classList.add("hidden"); $("app").classList.remove("hidden");
   render();
 }
@@ -134,10 +197,16 @@ async function tryUnlock(password, remember){
   }
 }
 
-$("unlock-form").addEventListener("submit", e=>{e.preventDefault();tryUnlock($("password").value,$("remember").checked);});
-$("lock-button").addEventListener("click",()=>{localStorage.removeItem("u-k");location.reload();});
-for(const id of ["search","source-filter","group-filter","sort"]) $(id).addEventListener("input",render);
-document.querySelectorAll("nav button").forEach(b=>b.addEventListener("click",()=>{state.view=b.dataset.view;render();}));
+if(typeof document !== "undefined"){
+  $("unlock-form").addEventListener("submit", e=>{e.preventDefault();tryUnlock($("password").value,$("remember").checked);});
+  $("lock-button").addEventListener("click",()=>{localStorage.removeItem("u-k");location.reload();});
+  for(const id of ["search","source-filter","group-filter","size-filter","attribute-filter","sort"]) $(id).addEventListener("input",render);
+  document.querySelectorAll("nav button").forEach(b=>b.addEventListener("click",()=>{state.view=b.dataset.view;render();}));
 
-const saved=localStorage.getItem("u-k");
-if(saved){ $("remember").checked=true; $("password").value=saved; tryUnlock(saved,true); }
+  const saved=localStorage.getItem("u-k");
+  if(saved){ $("remember").checked=true; $("password").value=saved; tryUnlock(saved,true); }
+}
+
+if(typeof module !== "undefined" && module.exports){
+  module.exports={attributeValue,hasAttribute,compareItems,metricNumber};
+}
