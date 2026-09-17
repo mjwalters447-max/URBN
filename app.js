@@ -1,5 +1,5 @@
 const $ = (id) => typeof document !== "undefined" ? document.getElementById(id) : null;
-const state = { data:null, view:"browse", pending:null };
+const state = { data:null, view:"browse", pending:null, savedFilters:null, previousAttribute:"" };
 
 async function unpack(bytes) {
   if (!("DecompressionStream" in window)) throw new Error("Unsupported browser");
@@ -39,6 +39,13 @@ function esc(s=""){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":
 function metricNumber(v){ const m=String(v||"").match(/\d+(?:\.\d+)?/); return m ? Number(m[0]) : null; }
 function sizeLabel(v){ const n=Number(v); return `${n.toFixed(3).replace(/0+$/,"").replace(/\.$/,"")}g`; }
 
+function nextAttributeSort(previous,current,currentSort){
+  return !previous && current ? "metric-r" : currentSort;
+}
+function compareFilterDefaults(values){
+  return {...values,search:"",source:"",group:"",size:"",attribute:""};
+}
+
 function rememberedAgeMatches(password,remember,storedPassword,storedAge){
   return Boolean(remember && storedAge==="1" && storedPassword===password);
 }
@@ -69,6 +76,8 @@ function declineAge(){
   clearEntryMemory();
   state.pending=null;
   state.data=null;
+  state.savedFilters=null;
+  state.previousAttribute="";
   $("age-gate").classList.add("hidden");
   $("app").classList.add("hidden");
   $("lock").classList.remove("hidden");
@@ -202,9 +211,44 @@ function render(){
   else renderBrowse();
 }
 
+function readFilterState(){
+  return {
+    search:$("search").value,
+    source:$("source-filter").value,
+    group:$("group-filter").value,
+    size:$("size-filter").value,
+    attribute:$("attribute-filter").value,
+    sort:$("sort").value,
+  };
+}
+function applyFilterState(values){
+  $("search").value=values.search||"";
+  $("source-filter").value=values.source||"";
+  $("group-filter").value=values.group||"";
+  $("size-filter").value=values.size||"";
+  $("attribute-filter").value=values.attribute||"";
+  $("sort").value=values.sort||"name";
+  state.previousAttribute=values.attribute||"";
+}
+function switchView(nextView){
+  if(nextView==="compare"){
+    if(!state.savedFilters) state.savedFilters=readFilterState();
+    applyFilterState(compareFilterDefaults(readFilterState()));
+  } else if((nextView==="browse" || nextView==="offers") && state.savedFilters){
+    applyFilterState(state.savedFilters);
+    state.savedFilters=null;
+  }
+  state.view=nextView;
+  render();
+}
+
 function initData(data){
   state.data=data;
+  state.savedFilters=null;
+  state.previousAttribute="";
   const labels=data.l||{};
+  $("main-title").textContent=labels.bn||"View";
+  $("main-private").textContent=labels.bp||"";
   $("freshness").textContent=`Updated ${new Date(data.g).toLocaleString()}`;
 
   const sources=[...new Map((data.p||[]).map(p=>[p.a,p.A])).entries()].sort((a,b)=>String(a[1]).localeCompare(String(b[1])));
@@ -259,13 +303,22 @@ if(typeof document !== "undefined"){
   $("age-yes").addEventListener("click",approveAge);
   $("age-no").addEventListener("click",declineAge);
   $("lock-button").addEventListener("click",()=>{clearEntryMemory();location.reload();});
-  for(const id of ["search","source-filter","group-filter","size-filter","attribute-filter","sort"]) $(id).addEventListener("input",render);
-  document.querySelectorAll("nav button").forEach(b=>b.addEventListener("click",()=>{state.view=b.dataset.view;render();}));
+  for(const id of ["search","source-filter","group-filter","size-filter","sort"]) $(id).addEventListener("input",render);
+  $("attribute-filter").addEventListener("change",()=>{
+    const current=$("attribute-filter").value;
+    $("sort").value=nextAttributeSort(state.previousAttribute,current,$("sort").value);
+    state.previousAttribute=current;
+    render();
+  });
+  document.querySelectorAll("nav button").forEach(b=>b.addEventListener("click",()=>switchView(b.dataset.view)));
 
   const saved=localStorage.getItem("u-k");
   if(saved){ $("remember").checked=true; $("password").value=saved; tryUnlock(saved,true); }
 }
 
 if(typeof module !== "undefined" && module.exports){
-  module.exports={attributeValue,hasAttribute,compareItems,metricNumber,rememberedAgeMatches,unitValueMarkup};
+  module.exports={
+    attributeValue,hasAttribute,compareItems,metricNumber,rememberedAgeMatches,
+    unitValueMarkup,nextAttributeSort,compareFilterDefaults
+  };
 }
