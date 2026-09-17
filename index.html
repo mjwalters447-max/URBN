@@ -11,7 +11,6 @@
   <main>
     <section id="lock" class="lock-wrap">
       <div class="lock-card">
-        <div class="mark">◈</div>
         <h1>URBN</h1>
         <p class="muted">Private view</p>
         <form id="unlock-form">
@@ -24,10 +23,35 @@
       </div>
     </section>
 
+    <section id="age-gate" class="age-wrap hidden" role="dialog" aria-modal="true" aria-labelledby="age-title">
+      <div class="age-card">
+        <h2 id="age-title">Are you over the age of 21?</h2>
+        <div class="age-actions">
+          <button id="age-yes" type="button">Yes, I’m over 21</button>
+          <button id="age-no" type="button" class="ghost">No, I’m not</button>
+        </div>
+      </div>
+    </section>
+
     <section id="app" class="hidden">
       <header>
-        <div>
-          <h1>◈ URBN</h1>
+        <div class="brand-block">
+          <div class="brand-title">
+            <svg class="brand-glyph" viewBox="0 0 144 58" aria-hidden="true" focusable="false">
+              <g fill="currentColor">
+                <path d="M18 36c3-9 14-15 31-15 15 0 27 4 36 12-7 1-13 4-18 8H31c-7 0-11-2-13-5Z"/>
+                <path d="M19 34c-7 1-12-1-14-5-2-4 0-9 5-11 4-2 8-1 10 2 1 2 0 4-2 5-2 1-4 0-4-2-2 0-4 2-4 4 1 2 4 3 9 2Z"/>
+                <rect x="48" y="38" width="38" height="5" rx="2.5"/>
+                <path d="M79 31c1-7 6-12 13-14l2-9 7 8c7 1 12 6 13 12 1 7-3 13-10 16H90c-7-1-12-6-11-13Z"/>
+                <path d="M84 19 85 8l8 9Z"/>
+                <path d="m99 17 6-10 3 13Z"/>
+                <path d="M76 39c5-2 10-3 16-2l-2 6H75Z"/>
+                <polygon points="132,22 140,29 132,36 124,29"/>
+              </g>
+              <circle class="brand-eye" cx="105" cy="27" r="1.6"/>
+            </svg>
+            <h1>URBN</h1>
+          </div>
           <p id="freshness" class="muted"></p>
         </div>
         <button id="lock-button" class="ghost">Lock</button>

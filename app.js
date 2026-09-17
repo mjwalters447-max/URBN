@@ -1,5 +1,5 @@
 const $ = (id) => typeof document !== "undefined" ? document.getElementById(id) : null;
-const state = { data:null, view:"browse" };
+const state = { data:null, view:"browse", pending:null };
 
 async function unpack(bytes) {
   if (!("DecompressionStream" in window)) throw new Error("Unsupported browser");
@@ -38,6 +38,45 @@ function pct(v){ return v == null ? "" : `${Number(v).toFixed(2).replace(/\.00$/
 function esc(s=""){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 function metricNumber(v){ const m=String(v||"").match(/\d+(?:\.\d+)?/); return m ? Number(m[0]) : null; }
 function sizeLabel(v){ const n=Number(v); return `${n.toFixed(3).replace(/0+$/,"").replace(/\.$/,"")}g`; }
+
+function rememberedAgeMatches(password,remember,storedPassword,storedAge){
+  return Boolean(remember && storedAge==="1" && storedPassword===password);
+}
+function clearEntryMemory(){
+  localStorage.removeItem("u-k");
+  localStorage.removeItem("u-a");
+}
+function showAgeGate(data,password,remember){
+  state.pending={data,password,remember};
+  $("unlock-error").textContent="";
+  $("lock").classList.add("hidden");
+  $("age-gate").classList.remove("hidden");
+}
+function approveAge(){
+  const pending=state.pending;
+  if(!pending) return;
+  if(pending.remember){
+    localStorage.setItem("u-k",pending.password);
+    localStorage.setItem("u-a","1");
+  } else {
+    clearEntryMemory();
+  }
+  $("age-gate").classList.add("hidden");
+  initData(pending.data);
+  state.pending=null;
+}
+function declineAge(){
+  clearEntryMemory();
+  state.pending=null;
+  state.data=null;
+  $("age-gate").classList.add("hidden");
+  $("app").classList.add("hidden");
+  $("lock").classList.remove("hidden");
+  $("unlock-error").textContent="";
+  $("password").value="";
+  $("remember").checked=false;
+  $("password").focus();
+}
 
 function attributeValue(item, key){
   if(!key || !item || !item.q || !(key in item.q)) return null;
@@ -181,7 +220,9 @@ function initData(data){
     <option value="metric-r">${esc(labels.sr||"Metric 2: High to Low")}</option>
     <option value="ppg">Unit Value: Low to High</option>`;
 
-  $("lock").classList.add("hidden"); $("app").classList.remove("hidden");
+  $("lock").classList.add("hidden");
+  $("age-gate").classList.add("hidden");
+  $("app").classList.remove("hidden");
   render();
 }
 
@@ -189,18 +230,26 @@ async function tryUnlock(password, remember){
   $("unlock-error").textContent="Unlocking…";
   try{
     const data=await openData(password);
-    if(remember) localStorage.setItem("u-k",password); else localStorage.removeItem("u-k");
+    const storedPassword=localStorage.getItem("u-k");
+    const storedAge=localStorage.getItem("u-a");
     $("unlock-error").textContent="";
-    initData(data);
+    if(rememberedAgeMatches(password,remember,storedPassword,storedAge)){
+      initData(data);
+    } else {
+      clearEntryMemory();
+      showAgeGate(data,password,remember);
+    }
   }catch(err){
     $("unlock-error").textContent="Incorrect password or data unavailable.";
-    localStorage.removeItem("u-k");
+    clearEntryMemory();
   }
 }
 
 if(typeof document !== "undefined"){
   $("unlock-form").addEventListener("submit", e=>{e.preventDefault();tryUnlock($("password").value,$("remember").checked);});
-  $("lock-button").addEventListener("click",()=>{localStorage.removeItem("u-k");location.reload();});
+  $("age-yes").addEventListener("click",approveAge);
+  $("age-no").addEventListener("click",declineAge);
+  $("lock-button").addEventListener("click",()=>{clearEntryMemory();location.reload();});
   for(const id of ["search","source-filter","group-filter","size-filter","attribute-filter","sort"]) $(id).addEventListener("input",render);
   document.querySelectorAll("nav button").forEach(b=>b.addEventListener("click",()=>{state.view=b.dataset.view;render();}));
 
@@ -209,5 +258,5 @@ if(typeof document !== "undefined"){
 }
 
 if(typeof module !== "undefined" && module.exports){
-  module.exports={attributeValue,hasAttribute,compareItems,metricNumber};
+  module.exports={attributeValue,hasAttribute,compareItems,metricNumber,rememberedAgeMatches};
 }
