@@ -114,6 +114,14 @@ function compareItems(a,b,sort,key=""){
   return result;
 }
 
+function unitValueMarkup(item, sort){
+  if(!item || item.g == null) return "";
+  if(sort==="ppg"){
+    return `<div class="unit-value unit-value-active"><span>Unit value</span><strong>${money(item.g)}/g</strong></div>`;
+  }
+  return `<div class="meta unit-value">${money(item.g)}/g</div>`;
+}
+
 function itemCard(p){
   const labels=state.data.l||{};
   const selected=$("attribute-filter")?.value||"";
@@ -123,6 +131,7 @@ function itemCard(p){
   const meta = [p.c,p.t,p.z,p.h?`${labels.h||"M1"} ${p.h}`:null,p.r?`${labels.r||"M2"} ${p.r}`:null].filter(Boolean).join(" • ");
   const focus = selected && selectedValue !== null
     ? `<div class="focus-metric"><span>${esc(selected)}</span><strong>${pct(selectedValue)}</strong></div>` : "";
+  const unitValue=unitValueMarkup(p,$("sort")?.value||"");
   return `<article class="card">
     <div class="store">${esc(p.A||"")}</div>
     <div class="brand">${esc(p.b||"")}</div>
@@ -131,7 +140,7 @@ function itemCard(p){
     <div class="meta">${esc(meta)}</div>
     ${sale}
     <div class="price">${money(p.p)}${old}</div>
-    ${p.g ? `<div class="meta">${money(p.g)}/g</div>` : ""}
+    ${unitValue}
     ${p.m ? `<div class="promo">${esc(p.m)}</div>` : ""}
     ${p.v ? `<div class="meta">${esc(p.v)}</div>` : ""}
     ${p.l ? `<a class="source" href="${esc(p.l)}" target="_blank" rel="noopener">Open ↗</a>` : ""}
@@ -258,5 +267,5 @@ if(typeof document !== "undefined"){
 }
 
 if(typeof module !== "undefined" && module.exports){
-  module.exports={attributeValue,hasAttribute,compareItems,metricNumber,rememberedAgeMatches};
+  module.exports={attributeValue,hasAttribute,compareItems,metricNumber,rememberedAgeMatches,unitValueMarkup};
 }
