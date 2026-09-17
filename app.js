@@ -67,6 +67,7 @@ function compareItems(a,b,sort,key=""){
   else if(sort==="ppg") result=(a.g??Infinity)-(b.g??Infinity);
   else result=String(a.n||"").localeCompare(String(b.n||""));
 
+  if(!Number.isFinite(result)) result=0;
   if(result===0 && key){
     result=descNumber(attributeValue(a,key),attributeValue(b,key));
   }
