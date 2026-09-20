@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>URBN</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main>
+    <section id="lock" class="lock-wrap">
+      <div class="lock-card">
+        <h1>NBRU</h1>
+        <p class="muted">Private view</p>
+        <form id="unlock-form">
+          <label for="password">Password</label>
+          <input id="password" type="password" autocomplete="current-password" required>
+          <label class="remember"><input id="remember" type="checkbox"> Remember this device</label>
+          <button type="submit">Unlock</button>
+          <p id="unlock-error" class="error" aria-live="polite"></p>
+        </form>
+      </div>
+    </section>
+
+    <section id="age-gate" class="age-wrap hidden" role="dialog" aria-modal="true" aria-labelledby="age-title">
+      <div class="age-card">
+        <h2 id="age-title">Are you over the age of 21?</h2>
+        <div class="age-actions">
+          <button id="age-yes" type="button">Yes, I’m over 21</button>
+          <button id="age-no" type="button" class="ghost">No, I’m not</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="app" class="hidden">
+      <header>
+        <div class="brand-block">
+          <div class="brand-title">
+            <svg class="brand-glyph" viewBox="0 0 164 64" aria-hidden="true" focusable="false">
+              <g fill="currentColor">
+                <path class="cat-body" d="M31 43c-8 0-15-2-20-7-5-5-5-12 0-17 4-4 11-6 16-2 4 3 4 8 1 11-3 3-7 3-10 1-2 1-2 4 0 6 2 2 6 3 11 3h5c5-10 17-16 35-16 17 0 30 5 40 15l-9 8H50c-7 0-13-1-19-2Z"/>
+                <rect x="53" y="42" width="42" height="5" rx="2.5"/>
+                <path class="cat-head" d="M92 34c0-8 5-14 13-17 4-1 9-1 13 0 8 3 13 9 13 17 0 8-5 14-13 17h-13c-8-2-13-8-13-17Z"/>
+                <path class="ear" d="M99 19 102 8 109 18Z"/>
+                <path class="ear" d="M111 18 118 9 120 21Z"/>
+                <path d="M88 43c6-3 13-4 20-3l-2 7H86Z"/>
+                <polygon points="148,25 157,32 148,39 139,32"/>
+              </g>
+              <circle class="brand-eye" cx="119" cy="30" r="1.7"/>
+            </svg>
+            <div class="brand-copy">
+              <h1 id="main-title" class="brand-name"></h1>
+              <span id="main-private" class="brand-private"></span>
+            </div>
+          </div>
+          <p id="freshness" class="muted"></p>
+        </div>
+        <button id="lock-button" class="ghost">Lock</button>
+      </header>
+
+      <section class="filter-panel" aria-label="Filters">
+        <label class="filter-search">
+          <span>Search</span>
+          <input id="search" type="search" placeholder="Search…">
+        </label>
+        <label class="filter-control">
+          <span>Source</span>
+          <select id="source-filter"><option value="">All Sources</option></select>
+        </label>
+        <label class="filter-control">
+          <span>Type</span>
+          <select id="group-filter"><option value="">All Types</option></select>
+        </label>
+        <label class="filter-control">
+          <span>Size</span>
+          <select id="size-filter"><option value="">Any Size</option></select>
+        </label>
+        <label class="filter-control">
+          <span id="attribute-caption">Attribute</span>
+          <select id="attribute-filter"><option value="">Any</option></select>
+        </label>
+        <label class="filter-control sort-control">
+          <span>Sort</span>
+          <select id="sort">
+            <option value="name">Sort</option>
+            <option value="price-asc">Price: Low to High</option>
+            <option value="price-desc">Price: High to Low</option>
+            <option value="discount">Largest Discount</option>
+            <option value="ppg">Unit Value: Low to High</option>
+          </select>
+        </label>
+      </section>
+
+      <nav>
+        <button data-view="browse" class="active">All</button>
+        <button data-view="offers">Offers Only</button>
+        <button data-view="compare"><span>Cross<br>Matches</span></button>
+        <button data-view="sources">Sources</button>
+      </nav>
+
+      <section id="summary" class="summary"></section>
+      <section id="content" class="cards"></section>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
