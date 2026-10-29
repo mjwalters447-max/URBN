@@ -54,33 +54,43 @@
               <span id="main-private" class="brand-private"></span>
             </div>
           </div>
+          <p id="intro" class="intro"></p>
           <p id="freshness" class="muted"></p>
         </div>
         <button id="lock-button" class="ghost">Lock</button>
       </header>
 
-      <section class="filter-panel" aria-label="Filters">
+      <nav aria-label="Views">
+        <button data-view="browse" class="active" aria-pressed="true">All <span id="browse-count" class="nav-count"></span></button>
+        <button data-view="offers" aria-pressed="false">Deals <span id="offers-count" class="nav-count"></span></button>
+        <button data-view="compare" aria-pressed="false"><span>Cross<br>Matches</span></button>
+        <button data-view="sources" aria-pressed="false">Sources <span id="sources-count" class="nav-count"></span></button>
+      </nav>
+
+      <section class="view-heading"><h2 id="view-title"></h2><div id="summary" class="summary" aria-live="polite"></div></section>
+
+      <section id="filter-panel" class="filter-panel" aria-label="Filters">
         <label class="filter-search">
           <span>Search</span>
-          <input id="search" type="search" placeholder="Search…">
+          <input id="search" type="search" placeholder="Search by name, brand or source…">
         </label>
         <label class="filter-control">
           <span>Source</span>
           <select id="source-filter"><option value="">All Sources</option></select>
         </label>
-        <label class="filter-control">
+        <label class="filter-control product-filter">
           <span>Type</span>
           <select id="group-filter"><option value="">All Types</option></select>
         </label>
-        <label class="filter-control">
+        <label class="filter-control product-filter">
           <span>Size</span>
           <select id="size-filter"><option value="">Any Size</option></select>
         </label>
-        <label class="filter-control">
+        <label class="filter-control product-filter">
           <span id="attribute-caption">Attribute</span>
           <select id="attribute-filter"><option value="">Any</option></select>
         </label>
-        <label class="filter-control sort-control">
+        <label class="filter-control sort-control product-filter">
           <span>Sort</span>
           <select id="sort">
             <option value="name">Sort</option>
@@ -90,19 +100,16 @@
             <option value="ppg">Unit Value: Low to High</option>
           </select>
         </label>
+        <div class="filter-footer"><div id="active-filters" class="active-filters"></div><button id="reset-filters" class="text-button" type="button">Reset filters</button></div>
       </section>
 
-      <nav>
-        <button data-view="browse" class="active">All</button>
-        <button data-view="offers">Offers Only</button>
-        <button data-view="compare"><span>Cross<br>Matches</span></button>
-        <button data-view="sources">Sources</button>
-      </nav>
-
-      <section id="summary" class="summary"></section>
+      <p id="view-note" class="view-note"></p>
       <section id="content" class="cards"></section>
+      <div class="more-wrap"><button id="load-more" class="ghost hidden" type="button">Show more</button></div>
+      <footer id="footer-note" class="footer-note"></footer>
     </section>
   </main>
   <script src="app.js"></script>
 </body>
 </html>
+
