@@ -57,8 +57,9 @@
           <p id="intro" class="intro"></p>
           <p id="freshness" class="muted"></p>
         </div>
-        <button id="lock-button" class="ghost">Lock</button>
+        <div class="header-actions"><button id="refresh-button" class="ghost" type="button">Check for updates</button><button id="lock-button" class="ghost">Lock</button></div>
       </header>
+      <p id="refresh-status" class="refresh-status" role="status"></p>
 
       <nav aria-label="Views">
         <button data-view="browse" class="active" aria-pressed="true">All <span id="browse-count" class="nav-count"></span></button>
@@ -74,10 +75,13 @@
           <span>Search</span>
           <input id="search" type="search" placeholder="Search by name, brand or source…">
         </label>
-        <label class="filter-control">
-          <span>Source</span>
-          <select id="source-filter"><option value="">All Sources</option></select>
-        </label>
+        <div class="filter-control source-control">
+          <span id="source-label">Sources</span>
+          <details id="source-picker" class="source-picker">
+            <summary id="source-summary">All Sources</summary>
+            <fieldset class="source-options" id="source-options" aria-labelledby="source-label"></fieldset>
+          </details>
+        </div>
         <label class="filter-control product-filter">
           <span>Type</span>
           <select id="group-filter"><option value="">All Types</option></select>

@@ -1,5 +1,5 @@
 const $ = (id) => typeof document !== "undefined" ? document.getElementById(id) : null;
-const state = { data:null, view:"browse", pending:null, savedFilters:null, previousAttribute:"", browseFilters:null, dealFilters:null, limit:60 };
+const state = { data:null, view:"browse", pending:null, savedFilters:null, previousAttribute:"", browseFilters:null, dealFilters:null, limit:60, sources:[], sessionPassword:null, checking:false, lastCheck:0, refreshEpoch:0 };
 
 async function unpack(bytes) {
   if (!("DecompressionStream" in window)) throw new Error("Unsupported browser");
@@ -51,7 +51,7 @@ function sourceLink(url,label="Open source"){
   const href=safeUrl(url);
   return href ? `<a class="source" href="${esc(href)}" target="_blank" rel="noopener noreferrer">${esc(label)} <span aria-hidden="true">↗</span></a>` : "";
 }
-function blankFilters(){return {search:"",source:"",group:"",size:"",attribute:"",sort:"name"};}
+function blankFilters(){return {search:"",source:[],group:"",size:"",attribute:"",sort:"name"};}
 function entryMemory(key){try{return localStorage.getItem(key);}catch{return null;}}
 function sizeLabel(v){ const n=Number(v); return `${n.toFixed(3).replace(/0+$/,"").replace(/\.$/,"")}g`; }
 
@@ -59,7 +59,23 @@ function nextAttributeSort(previous,current,currentSort){
   return !previous && current ? "metric-r" : currentSort;
 }
 function compareFilterDefaults(values){
-  return {...values,search:"",source:"",group:"",size:"",attribute:""};
+  return {...values,search:"",source:[],group:"",size:"",attribute:""};
+}
+
+function sourceSelection(value){return [...new Set((Array.isArray(value)?value:value?[value]:[]).filter(v=>typeof v==="string"&&v))];}
+function matchesSource(item,selected){return !selected.length || selected.includes(item.a);}
+function setSources(value){
+  const available=new Set((state.data?.s||[]).map(s=>s.a));
+  state.sources=sourceSelection(value).filter(id=>available.has(id));
+  const sources=state.data?.s||[];
+  $("source-summary").textContent=state.sources.length===0?"All Sources":state.sources.length===1?sources.find(s=>s.a===state.sources[0])?.n||"1 source":`${state.sources.length} sources selected`;
+  $("source-options").querySelectorAll("input").forEach(input=>{input.checked=input.dataset.source?state.sources.includes(input.dataset.source):!state.sources.length;});
+}
+
+function imageMarkup(item){
+  const url=safeUrl(item.j);
+  if(!url.startsWith("https://")) return "";
+  return `<div class="item-image"><img src="${esc(url)}" alt="${esc(item.n||"Item image")}" width="320" height="200" loading="lazy" decoding="async" referrerpolicy="no-referrer"></div>`;
 }
 
 function rememberedAgeMatches(password,remember,storedPassword,storedAge){
@@ -84,6 +100,7 @@ function approveAge(){
     clearEntryMemory();
   }
   $("age-gate").classList.add("hidden");
+  state.sessionPassword=pending.password;
   initData(pending.data);
   state.pending=null;
 }
@@ -91,6 +108,8 @@ function declineAge(){
   clearEntryMemory();
   state.pending=null;
   state.data=null;
+  state.sessionPassword=null;
+  state.refreshEpoch++;
   state.savedFilters=null;
   state.previousAttribute="";
   $("age-gate").classList.add("hidden");
@@ -155,7 +174,7 @@ function unitValueMarkup(item, sort){
 
 function sourceState(id){return (state.data.s||[]).find(s=>s.a===id);}
 function isStale(source){
-  return !source || source.s!=="fresh" || !source.l || Date.now()-Date.parse(source.l)>24*60*60*1000;
+  return !source || source.s!=="fresh" || !Number.isFinite(Date.parse(source.l)) || Date.now()-Date.parse(source.l)>24*60*60*1000;
 }
 function staleBadge(id){return isStale(sourceState(id)) ? `<span class="badge warning">Earlier snapshot · verify at source</span>` : "";}
 function dateLabel(value){const d=new Date(value);return value && !Number.isNaN(d.getTime()) ? d.toLocaleString() : "Not available";}
@@ -173,6 +192,7 @@ function itemCard(p){
   return `<article class="card">
     <div class="card-top"><div class="store">${esc(p.A||"")}</div>${sale}</div>
     ${staleBadge(p.a)}
+    ${imageMarkup(p)}
     <div class="brand">${esc(p.b||"Source listing")}</div>
     <h3>${esc(p.n||"")}</h3>
     <div class="meta tags">${meta.map(v=>`<span>${esc(v)}</span>`).join("")}</div>
@@ -186,18 +206,22 @@ function itemCard(p){
   </article>`;
 }
 function offerCard(p){
-  return `<article class="card offer-card"><div class="card-top"><div class="store">${esc(p.A||"")}</div><span class="badge">Store promotion</span></div>
-    ${staleBadge(p.a)}<h3>${esc(p.n||"")}</h3>
-    ${p.m?`<p class="offer-details">${esc(p.m)}</p>`:""}
+  const old=p.s==="stale" || (p.t && Date.now()-Date.parse(p.t)>24*60*60*1000);
+  const badge=old?`<span class="badge warning">Earlier promotion · verify dates</span>`:staleBadge(p.a);
+  const details=p.m?`<p class="offer-details">${esc(p.m)}</p>`:"";
+  return `<article class="card offer-card"><div class="card-top"><div class="store">${esc(p.A||"")}</div><span class="badge">${p.k==="notice"?"Schedule & eligibility":p.k==="banner"?"Posted notice":"Store promotion"}</span></div>
+    ${badge}${imageMarkup(p)}<h3>${esc(p.n||"")}</h3>
+    ${p.k==="notice"?`<details class="offer-terms"><summary>View offers, schedule & conditions</summary>${details}</details>`:details}
+    ${p.t?`<div class="meta">Observed ${esc(dateLabel(p.t))}</div>`:""}
     <div class="card-bottom">${sourceLink(p.l,"View eligible items & terms")}</div></article>`;
 }
 function filtered(){
   const q=$("search").value.trim().toLowerCase();
-  const source=$("source-filter").value, group=$("group-filter").value;
+  const group=$("group-filter").value;
   const size=$("size-filter").value, attribute=$("attribute-filter").value;
   let items=[...(state.view==="offers" ? state.data.o||[] : state.data.p||[])];
   if(q) items=items.filter(p=>[p.n,p.b,p.c,p.t,p.A,...(state.view==="offers"?[p.m]:[])].some(x=>String(x||"").toLowerCase().includes(q)));
-  if(source) items=items.filter(p=>p.a===source);
+  items=items.filter(p=>matchesSource(p,state.sources));
   if(state.view!=="offers"){
     if(group) items=items.filter(p=>p.c===group);
     if(size) items=items.filter(p=>Number(p.w)===Number(size));
@@ -215,7 +239,11 @@ function renderBrowse(){
   const visible=items.slice(0,state.limit);
   const noun=offers?"deals":"products";
   $("summary").innerHTML=`<strong>${items.length.toLocaleString()} ${noun}</strong><span>${items.length>visible.length?`Showing ${visible.length.toLocaleString()}`:""}</span>`;
-  const note=offers ? state.data.l?.dealNote||"Check current terms at the source." : attribute ? `Products without a reported ${attribute} concentration are excluded.` : $("sort").value.startsWith("metric-h") ? "Only the selected unit is ranked. Other or missing measurements appear last; ranges use their lower value." : "";
+  let note=offers ? state.data.l?.dealNote||"Check current terms at the source." : attribute ? `Products without a reported ${attribute} concentration are excluded.` : $("sort").value.startsWith("metric-h") ? "Only the selected unit is ranked. Other or missing measurements appear last; ranges use their lower value." : "";
+  if(offers){
+    const missing=(state.data.s||[]).filter(s=>matchesSource(s,state.sources)&&s.d!=="checked");
+    if(missing.length) note+=` Separate promotion coverage is incomplete for ${missing.map(s=>s.n).join(", ")}; their menus may have additional offers.`;
+  }
   $("view-note").textContent=note;
   $("content").innerHTML=visible.map(offers?offerCard:itemCard).join("") || emptyState(offers?"No matching promotions":"No matching products");
   $("load-more").classList.toggle("hidden",items.length<=visible.length);
@@ -244,12 +272,14 @@ function renderSources(){
   $("content").innerHTML=sources.map(s=>`<article class="card">
     <div class="store-status"><span class="dot ${isStale(s)?"stale":"fresh"}"></span><h3>${esc(s.n||"")}</h3></div>
     <div class="meta">${s.s==="unavailable"?"Unavailable":isStale(s)?"Earlier snapshot":"Latest collection available"}</div><p class="source-date">${esc(dateLabel(s.l))}</p>
+    <div class="meta">Promotions: ${s.d==="checked"?"Checked":s.d==="partial"?"Collection incomplete":s.d==="not_exposed"?"Separate offers not exposed":"Not yet checked"}</div>
     <div class="card-bottom">${sourceLink(s.u,"Open menu")}</div>
   </article>`).join("");
 }
 function renderFilterChips(){
-  const ids=state.view==="offers"?["search","source-filter"]:["search","source-filter","group-filter","size-filter","attribute-filter"];
-  $("active-filters").innerHTML=ids.filter(id=>$(id).value).map(id=>{
+  const ids=state.view==="offers"?["search"]:["search","group-filter","size-filter","attribute-filter"];
+  const sourceChips=state.sources.map(id=>{const name=sourceState(id)?.n||id;return `<button class="filter-chip" type="button" data-source-clear="${esc(id)}" aria-label="${esc(`Remove ${name}`)}">${esc(name)} <span aria-hidden="true">×</span></button>`;}).join("");
+  $("active-filters").innerHTML=sourceChips+ids.filter(id=>$(id).value).map(id=>{
     const el=$(id), text=id==="search"?`Search: ${el.value}`:el.options[el.selectedIndex]?.text||el.value;
     return `<button class="filter-chip" type="button" data-clear="${id}" aria-label="${esc(`Remove ${text}`)}">${esc(text)} <span aria-hidden="true">×</span></button>`;
   }).join("");
@@ -267,6 +297,11 @@ function render(){
   else if(state.view==="sources") renderSources();
   else renderBrowse();
   $("content").querySelectorAll("[data-reset]").forEach(b=>b.addEventListener("click",resetFilters));
+  $("content").querySelectorAll(".item-image img").forEach(img=>{
+    const hide=()=>{img.parentElement.classList.add("hidden");};
+    img.addEventListener("error",hide,{once:true});
+    if(img.complete && img.naturalWidth===0) hide();
+  });
 }
 function resetFilters(){applyFilterState(blankFilters());state.limit=60;render();}
 function filterChanged(){state.limit=60;render();}
@@ -274,7 +309,7 @@ function filterChanged(){state.limit=60;render();}
 function readFilterState(){
   return {
     search:$("search").value,
-    source:$("source-filter").value,
+    source:[...state.sources],
     group:$("group-filter").value,
     size:$("size-filter").value,
     attribute:$("attribute-filter").value,
@@ -283,7 +318,7 @@ function readFilterState(){
 }
 function applyFilterState(values){
   $("search").value=values.search||"";
-  $("source-filter").value=values.source||"";
+  setSources(values.source);
   $("group-filter").value=values.group||"";
   $("size-filter").value=values.size||"";
   $("attribute-filter").value=values.attribute||"";
@@ -306,7 +341,8 @@ function switchView(nextView){
   render();
 }
 
-function initData(data){
+function initData(data,preserve=false){
+  const current=preserve?{view:state.view,filters:readFilterState(),browse:state.browseFilters,deal:state.dealFilters,limit:state.limit}:null;
   state.data=data;
   state.view="browse";
   state.browseFilters=null;
@@ -323,10 +359,12 @@ function initData(data){
   $("browse-count").textContent=(data.p||[]).length.toLocaleString();
   $("offers-count").textContent=(data.o||[]).length;
   $("sources-count").textContent=(data.s||[]).length;
-  $("freshness").textContent=`Updated ${dateLabel(data.g)}`;
+  const oldSources=(data.s||[]).filter(isStale).length;
+  $("freshness").textContent=`Catalog collected ${dateLabel(data.g)}${oldSources?` · ${oldSources} earlier source snapshot${oldSources===1?"":"s"}`:""}`;
+  state.lastCheck=Date.now();
 
-  const sources=[...new Map([...(data.p||[]),...(data.o||[])].map(p=>[p.a,p.A])).entries()].sort((a,b)=>String(a[1]).localeCompare(String(b[1])));
-  $("source-filter").innerHTML=`<option value="">All Sources</option>`+sources.map(([v,n])=>`<option value="${esc(v)}">${esc(n)}</option>`).join("");
+  const sources=[...(data.s||[])].sort((a,b)=>String(a.n).localeCompare(String(b.n)));
+  $("source-options").innerHTML=`<legend>Choose one or more</legend><label><input type="checkbox" id="source-all"> All Sources</label>`+sources.map(s=>`<label><input type="checkbox" data-source="${esc(s.a)}"> ${esc(s.n)}</label>`).join("");
 
   const groups=[...new Set((data.p||[]).map(p=>p.c).filter(Boolean))].sort();
   $("group-filter").innerHTML=`<option value="">All Types</option>`+groups.map(c=>`<option>${esc(c)}</option>`).join("");
@@ -352,7 +390,10 @@ function initData(data){
   $("age-gate").classList.add("hidden");
   $("app").classList.remove("hidden");
   document.body.classList.add("is-open");
-  applyFilterState(blankFilters());
+  if(current){
+    state.view=current.view;state.browseFilters=current.browse;state.dealFilters=current.deal;state.limit=current.limit;
+  }
+  applyFilterState(current?.filters||blankFilters());
   render();
 }
 
@@ -364,6 +405,7 @@ async function tryUnlock(password, remember){
     const storedAge=entryMemory("u-a");
     $("unlock-error").textContent="";
     if(rememberedAgeMatches(password,remember,storedPassword,storedAge)){
+      state.sessionPassword=password;
       initData(data);
     } else {
       clearEntryMemory();
@@ -375,12 +417,45 @@ async function tryUnlock(password, remember){
   }
 }
 
+async function checkForUpdates(manual=false){
+  if(!state.data || !state.sessionPassword || state.checking) return;
+  if(!manual && (document.hidden || Date.now()-state.lastCheck<5*60*1000)) return;
+  state.checking=true;state.lastCheck=Date.now();
+  const password=state.sessionPassword, epoch=state.refreshEpoch;
+  $("refresh-button").disabled=true;
+  $("refresh-status").textContent=manual?"Checking the latest published catalog…":"";
+  try {
+    const data=await openData(password);
+    if(state.sessionPassword!==password || state.refreshEpoch!==epoch || !state.data) return;
+    const newer=data.g!==state.data.g;
+    if(newer) initData(data,true);
+    $("refresh-status").textContent=newer?"Latest catalog loaded. Your filters are preserved.":manual?"You’re viewing the latest published catalog.":"";
+  } catch {
+    if(state.refreshEpoch===epoch) $("refresh-status").textContent="Could not check for updates. Showing the last loaded catalog.";
+  } finally {
+    state.checking=false;$("refresh-button").disabled=false;
+  }
+}
+
 if(typeof document !== "undefined"){
   $("unlock-form").addEventListener("submit", e=>{e.preventDefault();tryUnlock($("password").value,$("remember").checked);});
   $("age-yes").addEventListener("click",approveAge);
   $("age-no").addEventListener("click",declineAge);
-  $("lock-button").addEventListener("click",()=>{clearEntryMemory();location.reload();});
-  for(const id of ["search","source-filter","group-filter","size-filter","sort"]) $(id).addEventListener("input",filterChanged);
+  $("lock-button").addEventListener("click",()=>{state.sessionPassword=null;state.refreshEpoch++;clearEntryMemory();location.reload();});
+  $("refresh-button").addEventListener("click",()=>checkForUpdates(true));
+  if(typeof setInterval!=="undefined") setInterval(()=>checkForUpdates(),60*1000);
+  document.addEventListener?.("visibilitychange",()=>{if(!document.hidden) checkForUpdates();});
+  for(const id of ["search","group-filter","size-filter","sort"]) $(id).addEventListener("input",filterChanged);
+  $("source-options").addEventListener("change",e=>{
+    const input=e.target;
+    if(input.id==="source-all") setSources([]);
+    else if(input.dataset.source){
+      setSources(input.checked?[...state.sources,input.dataset.source]:state.sources.filter(id=>id!==input.dataset.source));
+    }
+    filterChanged();
+  });
+  document.addEventListener?.("click",e=>{if(!$("source-picker").contains(e.target)) $("source-picker").open=false;});
+  $("source-picker").addEventListener("keydown",e=>{if(e.key==="Escape"){$("source-picker").open=false;$("source-summary").focus();}});
   $("attribute-filter").addEventListener("change",()=>{
     const current=$("attribute-filter").value;
     $("sort").value=nextAttributeSort(state.previousAttribute,current,$("sort").value);
@@ -392,6 +467,8 @@ if(typeof document !== "undefined"){
   $("reset-filters").addEventListener("click",resetFilters);
   $("load-more").addEventListener("click",()=>{state.limit+=60;render();});
   $("active-filters").addEventListener("click",e=>{
+    const source=e.target.closest("[data-source-clear]");
+    if(source){setSources(state.sources.filter(id=>id!==source.dataset.sourceClear));filterChanged();return;}
     const button=e.target.closest("[data-clear]");
     if(!button) return;
     $(button.dataset.clear).value="";
@@ -405,7 +482,8 @@ if(typeof document !== "undefined"){
 if(typeof module !== "undefined" && module.exports){
   module.exports={
     attributeValue,hasAttribute,compareItems,metricNumber,rememberedAgeMatches,
-    unitValueMarkup,nextAttributeSort,compareFilterDefaults,metricValue,safeUrl,compareNumber
+    unitValueMarkup,nextAttributeSort,compareFilterDefaults,metricValue,safeUrl,compareNumber,
+    sourceSelection,matchesSource,imageMarkup
   };
 }
 

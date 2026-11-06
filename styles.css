@@ -63,3 +63,20 @@ body.is-open main{max-width:1280px;padding:26px 30px 34px}
 }
 @media(max-width:370px){.brand-glyph{width:66px}.brand-name{font-size:1.45rem}.brand-private{font-size:.48rem}.nav-count{display:none}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important}}
+
+#app .header-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+#app #refresh-button{font-size:.76rem;padding:10px 12px;background:#ffffff80;border-color:#cddace}
+#app button:disabled{opacity:.55;cursor:wait}
+.refresh-status{font-size:.76rem;color:var(--muted);margin:0 0 14px}.refresh-status:empty{display:none}
+.source-control{position:relative;min-width:0}.source-picker>summary{height:44px;padding:12px;border:1px solid #dce4da;border-radius:9px;background:#f7f9f5;font-size:.86rem;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;list-style-position:inside}
+.source-picker[open]>summary{border-color:#78a38a;box-shadow:0 0 0 3px #21654c12}
+.source-picker>summary:focus-visible{outline:3px solid #83ae94;outline-offset:3px}
+.source-options{position:absolute;z-index:10;top:100%;left:0;min-width:290px;width:max-content;max-width:calc(100vw - 54px);max-height:360px;overflow:auto;margin:5px 0 0;padding:12px;background:#fff;border:1px solid #cddace;border-radius:12px;box-shadow:0 12px 30px #193e2520}
+.source-options legend{font-size:.72rem;font-weight:650;padding:0 5px;color:var(--muted);background:#fff}
+.source-options label{display:flex;align-items:center;gap:10px;padding:9px 6px;cursor:pointer;font-size:.82rem;border-radius:5px}.source-options label:hover{background:var(--accent2)}
+.filter-panel .source-options input{width:18px;height:18px;margin:0;accent-color:var(--accent);flex-shrink:0}
+.item-image{margin:0 0 16px;border-radius:10px;overflow:hidden;background:#f8f9f6;height:180px;display:flex;align-items:center;justify-content:center}
+.item-image img{display:block;width:100%;height:100%;object-fit:contain;padding:10px}.offer-card .item-image{height:200px}.offer-card .item-image img{padding:0}
+.offer-terms{margin:10px 0}.offer-terms summary{cursor:pointer;color:var(--accent);font-size:.85rem;font-weight:650}.offer-terms[open] summary{margin-bottom:12px}
+@media(max-width:720px){#app .header-actions{max-width:116px;gap:5px}#app #refresh-button{font-size:.66rem;padding:8px}#app #lock-button{margin-top:0}.source-picker>summary{font-size:.82rem;height:45px}.item-image{height:185px}.source-options{min-width:270px;max-height:330px}}
+@media(max-width:370px){#app .header-actions{max-width:80px}}
