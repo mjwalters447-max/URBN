@@ -1,5 +1,5 @@
 const $ = (id) => typeof document !== "undefined" ? document.getElementById(id) : null;
-const state = { data:null, view:"browse", pending:null, savedFilters:null, previousAttribute:"", browseFilters:null, dealFilters:null, limit:60, sources:[], sessionPassword:null, checking:false, lastCheck:0, refreshEpoch:0 };
+const state = { data:null, view:"browse", pending:null, savedFilters:null, previousAttribute:"", browseFilters:null, dealFilters:null, limit:60, sources:[], sizeBuckets:[], sizeGroup:null, sessionPassword:null, checking:false, lastCheck:0, refreshEpoch:0 };
 
 async function unpack(bytes) {
   if (!("DecompressionStream" in window)) throw new Error("Unsupported browser");
@@ -54,6 +54,37 @@ function sourceLink(url,label="Open source"){
 function blankFilters(){return {search:"",source:[],group:"",size:"",attribute:"",sort:"name"};}
 function entryMemory(key){try{return localStorage.getItem(key);}catch{return null;}}
 function sizeLabel(v){ const n=Number(v); return `${n.toFixed(3).replace(/0+$/,"").replace(/\.$/,"")}g`; }
+
+function sizeBucketsFor(items,group){
+  const counts=new Map();
+  for(const p of items){
+    if(group && p.c!==group) continue;
+    const weight=Number(p.w);
+    if(Number.isFinite(weight) && weight>0) counts.set(weight,(counts.get(weight)||0)+1);
+  }
+  const ranked=[...counts].sort((a,b)=>b[1]-a[1] || a[0]-b[0]);
+  const buckets=ranked.slice(0,10).map(([weight])=>weight);
+  // Keep an upper endpoint so uncommon large packages never round down or vanish.
+  const largest=ranked.reduce((max,[weight])=>Math.max(max,weight),0);
+  if(buckets.length && !buckets.includes(largest)) buckets[buckets.length-1]=largest;
+  return buckets.sort((a,b)=>a-b);
+}
+function sizeBucket(value,buckets){
+  const weight=Number(value);
+  if(!Number.isFinite(weight) || weight<=0) return null;
+  return buckets.find(bound=>weight<=bound+1e-9)??null;
+}
+function updateSizeOptions(selected=$("size-filter").value){
+  state.sizeGroup=$("group-filter").value;
+  state.sizeBuckets=sizeBucketsFor(state.data?.p||[],state.sizeGroup);
+  const select=$("size-filter");
+  select.innerHTML=`<option value="">Any Size</option>`+state.sizeBuckets.map((v,i)=>{
+    const range=i?`Over ${sizeLabel(state.sizeBuckets[i-1])} through ${sizeLabel(v)}`:`Up to ${sizeLabel(v)}`;
+    return `<option value="${v}" title="${range}">~${sizeLabel(v)}</option>`;
+  }).join("");
+  select.value=selected && state.sizeBuckets.includes(Number(selected))?String(Number(selected)):"";
+  select.disabled=!state.sizeBuckets.length;
+}
 
 function nextAttributeSort(previous,current,currentSort){
   return !previous && current ? "metric-r" : currentSort;
@@ -224,7 +255,7 @@ function filtered(){
   items=items.filter(p=>matchesSource(p,state.sources));
   if(state.view!=="offers"){
     if(group) items=items.filter(p=>p.c===group);
-    if(size) items=items.filter(p=>Number(p.w)===Number(size));
+    if(size) items=items.filter(p=>sizeBucket(p.w,state.sizeBuckets)===Number(size));
     if(attribute) items=items.filter(p=>hasAttribute(p,attribute));
   }
   items.sort((a,b)=>compareItems(a,b,state.view==="offers"?"name":$("sort").value,attribute));
@@ -304,7 +335,10 @@ function render(){
   });
 }
 function resetFilters(){applyFilterState(blankFilters());state.limit=60;render();}
-function filterChanged(){state.limit=60;render();}
+function filterChanged(){
+  if($("group-filter").value!==state.sizeGroup) updateSizeOptions();
+  state.limit=60;render();
+}
 
 function readFilterState(){
   return {
@@ -320,7 +354,7 @@ function applyFilterState(values){
   $("search").value=values.search||"";
   setSources(values.source);
   $("group-filter").value=values.group||"";
-  $("size-filter").value=values.size||"";
+  updateSizeOptions(values.size||"");
   $("attribute-filter").value=values.attribute||"";
   $("sort").value=values.sort||"name";
   state.previousAttribute=values.attribute||"";
@@ -368,9 +402,6 @@ function initData(data,preserve=false){
 
   const groups=[...new Set((data.p||[]).map(p=>p.c).filter(Boolean))].sort();
   $("group-filter").innerHTML=`<option value="">All Types</option>`+groups.map(c=>`<option>${esc(c)}</option>`).join("");
-
-  const sizes=[...new Set((data.p||[]).map(p=>Number(p.w)).filter(v=>Number.isFinite(v)&&v>0))].sort((a,b)=>a-b);
-  $("size-filter").innerHTML=`<option value="">Any Size</option>`+sizes.map(v=>`<option value="${v}">${sizeLabel(v)}</option>`).join("");
 
   const attrs=[...new Set((data.p||[]).flatMap(p=>Object.entries(p.q||{}).filter(([,v])=>Number(v)>0).map(([k])=>k)))].sort((a,b)=>a.localeCompare(b));
   $("attribute-caption").textContent=labels.f||"Attribute";
@@ -483,7 +514,7 @@ if(typeof module !== "undefined" && module.exports){
   module.exports={
     attributeValue,hasAttribute,compareItems,metricNumber,rememberedAgeMatches,
     unitValueMarkup,nextAttributeSort,compareFilterDefaults,metricValue,safeUrl,compareNumber,
-    sourceSelection,matchesSource,imageMarkup
+    sourceSelection,matchesSource,imageMarkup,sizeBucketsFor,sizeBucket
   };
 }
 
