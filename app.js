@@ -1,5 +1,5 @@
 const $ = (id) => typeof document !== "undefined" ? document.getElementById(id) : null;
-const state = { data:null, view:"browse", pending:null, savedFilters:null, previousAttribute:"", browseFilters:null, dealFilters:null, limit:60, sources:[], sizeBuckets:[], sizeGroup:null, sessionPassword:null, checking:false, lastCheck:0, refreshEpoch:0 };
+const state = { data:null, view:"browse", pending:null, savedFilters:null, previousAttribute:"", browseFilters:null, dealFilters:null, limit:60, sources:[], sizes:[], sizeBuckets:[], sizeGroup:null, sessionPassword:null, checking:false, lastCheck:0, refreshEpoch:0 };
 
 async function unpack(bytes) {
   if (!("DecompressionStream" in window)) throw new Error("Unsupported browser");
@@ -51,7 +51,7 @@ function sourceLink(url,label="Open source"){
   const href=safeUrl(url);
   return href ? `<a class="source" href="${esc(href)}" target="_blank" rel="noopener noreferrer">${esc(label)} <span aria-hidden="true">↗</span></a>` : "";
 }
-function blankFilters(){return {search:"",source:[],group:"",size:"",attribute:"",sort:"name"};}
+function blankFilters(){return {search:"",source:[],group:"",size:[],attribute:"",sort:"name"};}
 function entryMemory(key){try{return localStorage.getItem(key);}catch{return null;}}
 function sizeLabel(v){ const n=Number(v); return `${n.toFixed(3).replace(/0+$/,"").replace(/\.$/,"")}g`; }
 
@@ -74,23 +74,63 @@ function sizeBucket(value,buckets){
   if(!Number.isFinite(weight) || weight<=0) return null;
   return buckets.find(bound=>weight<=bound+1e-9)??null;
 }
-function updateSizeOptions(selected=$("size-filter").value){
+function sizeSelection(value,buckets){
+  return [...new Set((Array.isArray(value)?value:value?[value]:[]).map(Number))].filter(v=>buckets.includes(v));
+}
+function setSizes(value){
+  state.sizes=sizeSelection(value,state.sizeBuckets);
+  $("size-filter").textContent=!state.sizes.length?"Any Size":state.sizes.length===1?`~${sizeLabel(state.sizes[0])}`:`${state.sizes.length} sizes selected`;
+  $("size-options").querySelectorAll("input").forEach(input=>{input.checked=input.dataset.size?state.sizes.includes(Number(input.dataset.size)):!state.sizes.length;});
+}
+function updateSizeOptions(selected=state.sizes){
   state.sizeGroup=$("group-filter").value;
   state.sizeBuckets=sizeBucketsFor(state.data?.p||[],state.sizeGroup);
-  const select=$("size-filter");
-  select.innerHTML=`<option value="">Any Size</option>`+state.sizeBuckets.map((v,i)=>{
+  $("size-options").innerHTML=`<label><input type="checkbox" id="size-all"> Any Size</label>`+state.sizeBuckets.map((v,i)=>{
     const range=i?`Over ${sizeLabel(state.sizeBuckets[i-1])} through ${sizeLabel(v)}`:`Up to ${sizeLabel(v)}`;
-    return `<option value="${v}" title="${range}">~${sizeLabel(v)}</option>`;
+    return `<label title="${range}"><input type="checkbox" data-size="${v}"> ~${sizeLabel(v)}</label>`;
   }).join("");
-  select.value=selected && state.sizeBuckets.includes(Number(selected))?String(Number(selected)):"";
-  select.disabled=!state.sizeBuckets.length;
+  setSizes(selected);
+  $("size-filter").disabled=!state.sizeBuckets.length;
+}
+
+// Use the visible viewport, including mobile browser bars and the on-screen keyboard.
+function positionPicker(dialog){
+  const viewport=window.visualViewport;
+  dialog.style.setProperty("--picker-x",`${(viewport?.offsetLeft||0)+(viewport?.width||innerWidth)/2}px`);
+  dialog.style.setProperty("--picker-y",`${(viewport?.offsetTop||0)+(viewport?.height||innerHeight)/2}px`);
+  dialog.style.setProperty("--picker-width",`${(viewport?.width||innerWidth)-24}px`);
+  dialog.style.setProperty("--picker-height",`${(viewport?.height||innerHeight)-24}px`);
+}
+function setupPicker(dialogId,triggerId){
+  const dialog=$(dialogId), trigger=$(triggerId);
+  const reposition=()=>{if(dialog.open) positionPicker(dialog);};
+  trigger.addEventListener("click",()=>{
+    document.querySelectorAll(".filter-dialog[open]").forEach(el=>el.close());
+    positionPicker(dialog);
+    dialog.showModal();
+    trigger.setAttribute("aria-expanded","true");
+    document.body.classList.add("picker-open");
+  });
+  dialog.querySelector("[data-picker-done]").addEventListener("click",()=>dialog.close());
+  dialog.addEventListener("click",e=>{
+    const rect=dialog.getBoundingClientRect();
+    if(e.target===dialog && (e.clientX<rect.left || e.clientX>rect.right || e.clientY<rect.top || e.clientY>rect.bottom)) dialog.close();
+  });
+  dialog.addEventListener("close",()=>{
+    trigger.setAttribute("aria-expanded","false");
+    if(!document.querySelector(".filter-dialog[open]")) document.body.classList.remove("picker-open");
+    trigger.focus({preventScroll:true});
+  });
+  window.addEventListener("resize",reposition);
+  window.visualViewport?.addEventListener("resize",reposition);
+  window.visualViewport?.addEventListener("scroll",reposition);
 }
 
 function nextAttributeSort(previous,current,currentSort){
   return !previous && current ? "metric-r" : currentSort;
 }
 function compareFilterDefaults(values){
-  return {...values,search:"",source:[],group:"",size:"",attribute:""};
+  return {...values,search:"",source:[],group:"",size:[],attribute:""};
 }
 
 function sourceSelection(value){return [...new Set((Array.isArray(value)?value:value?[value]:[]).filter(v=>typeof v==="string"&&v))];}
@@ -207,7 +247,6 @@ function sourceState(id){return (state.data.s||[]).find(s=>s.a===id);}
 function isStale(source){
   return !source || source.s!=="fresh" || !Number.isFinite(Date.parse(source.l)) || Date.now()-Date.parse(source.l)>24*60*60*1000;
 }
-function staleBadge(id){return isStale(sourceState(id)) ? `<span class="badge warning">Earlier snapshot · verify at source</span>` : "";}
 function dateLabel(value){const d=new Date(value);return value && !Number.isNaN(d.getTime()) ? d.toLocaleString() : "Not available";}
 
 function itemCard(p){
@@ -222,7 +261,6 @@ function itemCard(p){
     ? `<div class="focus-metric"><span>${esc(selected)}</span><strong>${pct(selectedValue)}</strong></div>` : "";
   return `<article class="card">
     <div class="card-top"><div class="store">${esc(p.A||"")}</div>${sale}</div>
-    ${staleBadge(p.a)}
     ${imageMarkup(p)}
     <div class="brand">${esc(p.b||"Source listing")}</div>
     <h3>${esc(p.n||"")}</h3>
@@ -238,7 +276,7 @@ function itemCard(p){
 }
 function offerCard(p){
   const old=p.s==="stale" || (p.t && Date.now()-Date.parse(p.t)>24*60*60*1000);
-  const badge=old?`<span class="badge warning">Earlier promotion · verify dates</span>`:staleBadge(p.a);
+  const badge=old?`<span class="badge warning">Earlier promotion · verify dates</span>`:"";
   const details=p.m?`<p class="offer-details">${esc(p.m)}</p>`:"";
   return `<article class="card offer-card"><div class="card-top"><div class="store">${esc(p.A||"")}</div><span class="badge">${p.k==="notice"?"Schedule & eligibility":p.k==="banner"?"Posted notice":"Store promotion"}</span></div>
     ${badge}${imageMarkup(p)}<h3>${esc(p.n||"")}</h3>
@@ -249,13 +287,13 @@ function offerCard(p){
 function filtered(){
   const q=$("search").value.trim().toLowerCase();
   const group=$("group-filter").value;
-  const size=$("size-filter").value, attribute=$("attribute-filter").value;
+  const attribute=$("attribute-filter").value;
   let items=[...(state.view==="offers" ? state.data.o||[] : state.data.p||[])];
   if(q) items=items.filter(p=>[p.n,p.b,p.c,p.t,p.A,...(state.view==="offers"?[p.m]:[])].some(x=>String(x||"").toLowerCase().includes(q)));
   items=items.filter(p=>matchesSource(p,state.sources));
   if(state.view!=="offers"){
     if(group) items=items.filter(p=>p.c===group);
-    if(size) items=items.filter(p=>sizeBucket(p.w,state.sizeBuckets)===Number(size));
+    if(state.sizes.length) items=items.filter(p=>state.sizes.includes(sizeBucket(p.w,state.sizeBuckets)));
     if(attribute) items=items.filter(p=>hasAttribute(p,attribute));
   }
   items.sort((a,b)=>compareItems(a,b,state.view==="offers"?"name":$("sort").value,attribute));
@@ -290,7 +328,7 @@ function renderCompare(){
   $("content").innerHTML=matches.map(group=>{
     const p=group[0];
     const rows=group.sort((a,b)=>compareNumber(a.p,b.p)).map(x=>
-      `<div class="compare-row"><div>${sourceLink(x.l,x.A||"Source")}${staleBadge(x.a)}</div><strong>${x.p==null?"Unavailable":money(x.p)}</strong></div>`
+      `<div class="compare-row"><div>${sourceLink(x.l,x.A||"Source")}</div><strong>${x.p==null?"Unavailable":money(x.p)}</strong></div>`
     ).join("");
     return `<article class="card"><div class="brand">${esc(p.b||"")}</div><h3>${esc(p.n||"")}</h3><div class="meta">${esc([p.c,p.z].filter(Boolean).join(" • "))}</div>${rows}</article>`;
   }).join("") || emptyState("No exact matches across these sources");
@@ -308,9 +346,10 @@ function renderSources(){
   </article>`).join("");
 }
 function renderFilterChips(){
-  const ids=state.view==="offers"?["search"]:["search","group-filter","size-filter","attribute-filter"];
+  const ids=state.view==="offers"?["search"]:["search","group-filter","attribute-filter"];
   const sourceChips=state.sources.map(id=>{const name=sourceState(id)?.n||id;return `<button class="filter-chip" type="button" data-source-clear="${esc(id)}" aria-label="${esc(`Remove ${name}`)}">${esc(name)} <span aria-hidden="true">×</span></button>`;}).join("");
-  $("active-filters").innerHTML=sourceChips+ids.filter(id=>$(id).value).map(id=>{
+  const sizeChips=state.view==="offers"?"":state.sizes.map(size=>`<button class="filter-chip" type="button" data-size-clear="${size}" aria-label="Remove ~${sizeLabel(size)}">~${sizeLabel(size)} <span aria-hidden="true">×</span></button>`).join("");
+  $("active-filters").innerHTML=sourceChips+sizeChips+ids.filter(id=>$(id).value).map(id=>{
     const el=$(id), text=id==="search"?`Search: ${el.value}`:el.options[el.selectedIndex]?.text||el.value;
     return `<button class="filter-chip" type="button" data-clear="${id}" aria-label="${esc(`Remove ${text}`)}">${esc(text)} <span aria-hidden="true">×</span></button>`;
   }).join("");
@@ -345,7 +384,7 @@ function readFilterState(){
     search:$("search").value,
     source:[...state.sources],
     group:$("group-filter").value,
-    size:$("size-filter").value,
+    size:[...state.sizes],
     attribute:$("attribute-filter").value,
     sort:$("sort").value,
   };
@@ -354,7 +393,7 @@ function applyFilterState(values){
   $("search").value=values.search||"";
   setSources(values.source);
   $("group-filter").value=values.group||"";
-  updateSizeOptions(values.size||"");
+  updateSizeOptions(values.size||[]);
   $("attribute-filter").value=values.attribute||"";
   $("sort").value=values.sort||"name";
   state.previousAttribute=values.attribute||"";
@@ -398,7 +437,7 @@ function initData(data,preserve=false){
   state.lastCheck=Date.now();
 
   const sources=[...(data.s||[])].sort((a,b)=>String(a.n).localeCompare(String(b.n)));
-  $("source-options").innerHTML=`<legend>Choose one or more</legend><label><input type="checkbox" id="source-all"> All Sources</label>`+sources.map(s=>`<label><input type="checkbox" data-source="${esc(s.a)}"> ${esc(s.n)}</label>`).join("");
+  $("source-options").innerHTML=`<label><input type="checkbox" id="source-all"> All Sources</label>`+sources.map(s=>`<label><input type="checkbox" data-source="${esc(s.a)}"> ${esc(s.n)}</label>`).join("");
 
   const groups=[...new Set((data.p||[]).map(p=>p.c).filter(Boolean))].sort();
   $("group-filter").innerHTML=`<option value="">All Types</option>`+groups.map(c=>`<option>${esc(c)}</option>`).join("");
@@ -476,7 +515,7 @@ if(typeof document !== "undefined"){
   $("refresh-button").addEventListener("click",()=>checkForUpdates(true));
   if(typeof setInterval!=="undefined") setInterval(()=>checkForUpdates(),60*1000);
   document.addEventListener?.("visibilitychange",()=>{if(!document.hidden) checkForUpdates();});
-  for(const id of ["search","group-filter","size-filter","sort"]) $(id).addEventListener("input",filterChanged);
+  for(const id of ["search","group-filter","sort"]) $(id).addEventListener("input",filterChanged);
   $("source-options").addEventListener("change",e=>{
     const input=e.target;
     if(input.id==="source-all") setSources([]);
@@ -485,8 +524,17 @@ if(typeof document !== "undefined"){
     }
     filterChanged();
   });
-  document.addEventListener?.("click",e=>{if(!$("source-picker").contains(e.target)) $("source-picker").open=false;});
-  $("source-picker").addEventListener("keydown",e=>{if(e.key==="Escape"){$("source-picker").open=false;$("source-summary").focus();}});
+  $("size-options").addEventListener("change",e=>{
+    const input=e.target;
+    if(input.id==="size-all") setSizes([]);
+    else if(input.dataset.size){
+      const size=Number(input.dataset.size);
+      setSizes(input.checked?[...state.sizes,size]:state.sizes.filter(v=>v!==size));
+    }
+    filterChanged();
+  });
+  setupPicker("source-picker","source-summary");
+  setupPicker("size-picker","size-filter");
   $("attribute-filter").addEventListener("change",()=>{
     const current=$("attribute-filter").value;
     $("sort").value=nextAttributeSort(state.previousAttribute,current,$("sort").value);
@@ -500,6 +548,8 @@ if(typeof document !== "undefined"){
   $("active-filters").addEventListener("click",e=>{
     const source=e.target.closest("[data-source-clear]");
     if(source){setSources(state.sources.filter(id=>id!==source.dataset.sourceClear));filterChanged();return;}
+    const size=e.target.closest("[data-size-clear]");
+    if(size){setSizes(state.sizes.filter(v=>v!==Number(size.dataset.sizeClear)));filterChanged();return;}
     const button=e.target.closest("[data-clear]");
     if(!button) return;
     $(button.dataset.clear).value="";
@@ -514,7 +564,7 @@ if(typeof module !== "undefined" && module.exports){
   module.exports={
     attributeValue,hasAttribute,compareItems,metricNumber,rememberedAgeMatches,
     unitValueMarkup,nextAttributeSort,compareFilterDefaults,metricValue,safeUrl,compareNumber,
-    sourceSelection,matchesSource,imageMarkup,sizeBucketsFor,sizeBucket
+    sourceSelection,matchesSource,imageMarkup,sizeBucketsFor,sizeBucket,sizeSelection
   };
 }
 

@@ -77,19 +77,16 @@
         </label>
         <div class="filter-control source-control">
           <span id="source-label">Sources</span>
-          <details id="source-picker" class="source-picker">
-            <summary id="source-summary">All Sources</summary>
-            <fieldset class="source-options" id="source-options" aria-labelledby="source-label"></fieldset>
-          </details>
+          <button id="source-summary" class="filter-picker" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="source-picker" aria-describedby="source-label">All Sources</button>
         </div>
         <label class="filter-control product-filter">
           <span>Type</span>
           <select id="group-filter"><option value="">All Types</option></select>
         </label>
-        <label class="filter-control product-filter">
-          <span>Size (approx.)</span>
-          <select id="size-filter" title="Weights group upward to the next listed size. Individual item weights remain exact."><option value="">Any Size</option></select>
-        </label>
+        <div class="filter-control product-filter">
+          <span id="size-label">Size (approx.)</span>
+          <button id="size-filter" class="filter-picker" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="size-picker" aria-describedby="size-label">Any Size</button>
+        </div>
         <label class="filter-control product-filter">
           <span id="attribute-caption">Attribute</span>
           <select id="attribute-filter"><option value="">Any</option></select>
@@ -106,6 +103,17 @@
         </label>
         <div class="filter-footer"><div id="active-filters" class="active-filters"></div><button id="reset-filters" class="text-button" type="button">Reset filters</button></div>
       </section>
+
+      <dialog id="source-picker" class="filter-dialog" aria-labelledby="source-picker-title" aria-describedby="source-picker-help">
+        <header><h2 id="source-picker-title">Sources</h2><p id="source-picker-help">Choose one or more.</p></header>
+        <div class="picker-options" id="source-options" role="group" aria-label="Sources"></div>
+        <footer><button type="button" data-picker-done>Done</button></footer>
+      </dialog>
+      <dialog id="size-picker" class="filter-dialog" aria-labelledby="size-picker-title" aria-describedby="size-picker-help">
+        <header><h2 id="size-picker-title">Sizes (approx.)</h2><p id="size-picker-help">Choose one or more. Sizes round up; item weights stay exact.</p></header>
+        <div class="picker-options" id="size-options" role="group" aria-label="Sizes"></div>
+        <footer><button type="button" data-picker-done>Done</button></footer>
+      </dialog>
 
       <p id="view-note" class="view-note"></p>
       <section id="content" class="cards"></section>
